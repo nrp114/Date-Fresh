@@ -1,0 +1,944 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Trust Dating API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication
+  - name: profile
+    description: Profile management
+  - name: discovery
+    description: Candidate discovery
+  - name: likes
+    description: Like management
+  - name: matches
+    description: Match management
+  - name: messages
+    description: Messaging
+  - name: users
+    description: User actions (block/report)
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Create account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /profile/me:
+    get:
+      operationId: getMyProfile
+      tags: [profile]
+      summary: Get my profile
+      responses:
+        "200":
+          description: My profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    patch:
+      operationId: updateMyProfile
+      tags: [profile]
+      summary: Update my profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /profile/me/now-items:
+    post:
+      operationId: createNowItem
+      tags: [profile]
+      summary: Add a Now tab item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNowItemRequest"
+      responses:
+        "201":
+          description: Now item created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NowItem"
+
+  /profile/me/now-items/{nowItemId}:
+    delete:
+      operationId: deleteNowItem
+      tags: [profile]
+      summary: Delete a Now item
+      parameters:
+        - name: nowItemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /discovery/batch:
+    get:
+      operationId: getDiscoveryBatch
+      tags: [discovery]
+      summary: Get discovery candidate batch
+      responses:
+        "200":
+          description: Candidate batch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiscoveryBatch"
+
+  /profiles/{userId}:
+    get:
+      operationId: getProfile
+      tags: [profile]
+      summary: Get a user's profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /profiles/{userId}/likelihood:
+    get:
+      operationId: getMatchLikelihood
+      tags: [discovery]
+      summary: Get match likelihood label for a profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Likelihood label
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikelihoodLabel"
+
+  /likes:
+    post:
+      operationId: sendLike
+      tags: [likes]
+      summary: Send a like
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendLikeRequest"
+      responses:
+        "201":
+          description: Like sent (may include match)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendLikeResponse"
+    get:
+      operationId: getIncomingLikes
+      tags: [likes]
+      summary: Get incoming likes queue
+      responses:
+        "200":
+          description: Incoming likes tray
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncomingLikesResponse"
+
+  /likes/{likeId}/withdraw:
+    post:
+      operationId: withdrawLike
+      tags: [likes]
+      summary: Withdraw a like
+      parameters:
+        - name: likeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Withdrawn
+
+  /matches:
+    get:
+      operationId: getMatches
+      tags: [matches]
+      summary: Get matches list
+      responses:
+        "200":
+          description: Matches
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchesListResponse"
+
+  /matches/{matchId}:
+    get:
+      operationId: getMatch
+      tags: [matches]
+      summary: Get a match
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Match detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchDetail"
+
+  /matches/{matchId}/intro:
+    post:
+      operationId: sendIntro
+      tags: [matches]
+      summary: Send intro artifact
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendIntroRequest"
+      responses:
+        "201":
+          description: Intro sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntroArtifact"
+    get:
+      operationId: getIntros
+      tags: [matches]
+      summary: Get intros for a match
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Intros
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntroArtifact"
+
+  /matches/{matchId}/messages:
+    get:
+      operationId: getMessages
+      tags: [messages]
+      summary: Get messages in a match
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send a message
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /users/{userId}/block:
+    post:
+      operationId: blockUser
+      tags: [users]
+      summary: Block a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Blocked
+
+  /users/{userId}/report:
+    post:
+      operationId: reportUser
+      tags: [users]
+      summary: Report a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportRequest"
+      responses:
+        "204":
+          description: Reported
+
+  /billing/entitlements:
+    get:
+      operationId: getEntitlements
+      tags: [billing]
+      summary: Get user entitlements
+      responses:
+        "200":
+          description: Entitlements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entitlements"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    SignupRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        displayName:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        genderIdentity:
+          type: string
+        orientation:
+          type: string
+        relationshipIntent:
+          type: string
+      required:
+        - email
+        - password
+        - displayName
+        - dateOfBirth
+        - genderIdentity
+        - orientation
+        - relationshipIntent
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/UserProfile"
+      required:
+        - token
+        - user
+
+    UserProfile:
+      type: object
+      properties:
+        userId:
+          type: string
+        displayName:
+          type: string
+        bio:
+          type: string
+        age:
+          type: integer
+        genderIdentity:
+          type: string
+        orientation:
+          type: string
+        relationshipIntent:
+          type: string
+        verificationStatus:
+          type: string
+          enum: [unverified, pending, verified]
+        freshnessScore:
+          type: number
+        freshnessLabel:
+          type: string
+          enum: [active_today, updated_this_week, recent_media_this_month]
+        profileCompletenessScore:
+          type: number
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfilePhoto"
+        prompts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PromptAnswer"
+        nowItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/NowItem"
+        premiumTier:
+          type: string
+          enum: [free, premium]
+        lastActiveAt:
+          type: string
+          format: date-time
+        locationCity:
+          type: string
+        distanceKm:
+          type: number
+      required:
+        - userId
+        - displayName
+        - verificationStatus
+        - freshnessScore
+        - profileCompletenessScore
+        - photos
+        - prompts
+        - nowItems
+        - premiumTier
+
+    ProfilePhoto:
+      type: object
+      properties:
+        photoId:
+          type: string
+        url:
+          type: string
+        isPrimary:
+          type: boolean
+        freshnessLabel:
+          type: string
+        uploadedAt:
+          type: string
+          format: date-time
+      required:
+        - photoId
+        - url
+        - isPrimary
+
+    PromptAnswer:
+      type: object
+      properties:
+        promptAnswerId:
+          type: string
+        promptText:
+          type: string
+        answerType:
+          type: string
+          enum: [text, audio, video]
+        contentText:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - promptAnswerId
+        - promptText
+        - answerType
+
+    NowItem:
+      type: object
+      properties:
+        nowItemId:
+          type: string
+        mediaType:
+          type: string
+          enum: [photo, audio, video, text]
+        caption:
+          type: string
+        url:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+        - nowItemId
+        - mediaType
+        - createdAt
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+        bio:
+          type: string
+        relationshipIntent:
+          type: string
+        locationCity:
+          type: string
+
+    CreateNowItemRequest:
+      type: object
+      properties:
+        mediaType:
+          type: string
+          enum: [photo, audio, video, text]
+        caption:
+          type: string
+        url:
+          type: string
+      required:
+        - mediaType
+
+    DiscoveryBatch:
+      type: object
+      properties:
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiscoveryCandidate"
+        totalRemaining:
+          type: integer
+      required:
+        - candidates
+        - totalRemaining
+
+    DiscoveryCandidate:
+      type: object
+      properties:
+        profile:
+          $ref: "#/components/schemas/UserProfile"
+        likelihoodLabel:
+          $ref: "#/components/schemas/LikelihoodLabel"
+        explanationReasons:
+          type: array
+          items:
+            type: string
+      required:
+        - profile
+        - likelihoodLabel
+
+    LikelihoodLabel:
+      type: object
+      properties:
+        label:
+          type: string
+          enum: [high, moderate, low]
+        displayText:
+          type: string
+        reasons:
+          type: array
+          items:
+            type: string
+      required:
+        - label
+        - displayText
+
+    SendLikeRequest:
+      type: object
+      properties:
+        receiverUserId:
+          type: string
+        targetType:
+          type: string
+          enum: [profile, photo, prompt, now_item]
+        targetId:
+          type: string
+        message:
+          type: string
+      required:
+        - receiverUserId
+        - targetType
+
+    SendLikeResponse:
+      type: object
+      properties:
+        like:
+          $ref: "#/components/schemas/Like"
+        match:
+          $ref: "#/components/schemas/MatchDetail"
+        isMatch:
+          type: boolean
+        quotaRemaining:
+          type: integer
+      required:
+        - like
+        - isMatch
+
+    Like:
+      type: object
+      properties:
+        likeId:
+          type: string
+        senderUserId:
+          type: string
+        receiverUserId:
+          type: string
+        targetType:
+          type: string
+        message:
+          type: string
+        state:
+          type: string
+          enum: [pending, tray, matched, expired, withdrawn]
+        createdAt:
+          type: string
+          format: date-time
+        senderProfile:
+          $ref: "#/components/schemas/UserProfile"
+        likelihoodLabel:
+          $ref: "#/components/schemas/LikelihoodLabel"
+      required:
+        - likeId
+        - senderUserId
+        - receiverUserId
+        - targetType
+        - state
+        - createdAt
+
+    IncomingLikesResponse:
+      type: object
+      properties:
+        tray:
+          type: array
+          items:
+            $ref: "#/components/schemas/Like"
+        backlogCount:
+          type: integer
+        trayCount:
+          type: integer
+        queueStatus:
+          type: string
+          enum: [open, busy, limited]
+      required:
+        - tray
+        - backlogCount
+        - trayCount
+        - queueStatus
+
+    MatchesListResponse:
+      type: object
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatchSummary"
+      required:
+        - matches
+
+    MatchSummary:
+      type: object
+      properties:
+        matchId:
+          type: string
+        otherUser:
+          $ref: "#/components/schemas/UserProfile"
+        state:
+          type: string
+          enum: [active, unmatched, blocked, expired]
+        introState:
+          type: string
+          enum: [none, pending_mine, pending_theirs, both_sent, unlocked]
+        chatUnlockedAt:
+          type: string
+          format: date-time
+        lastMessage:
+          $ref: "#/components/schemas/Message"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - matchId
+        - otherUser
+        - state
+        - introState
+        - createdAt
+
+    MatchDetail:
+      type: object
+      properties:
+        matchId:
+          type: string
+        otherUser:
+          $ref: "#/components/schemas/UserProfile"
+        state:
+          type: string
+          enum: [active, unmatched, blocked, expired]
+        introState:
+          type: string
+          enum: [none, pending_mine, pending_theirs, both_sent, unlocked]
+        chatUnlockedAt:
+          type: string
+          format: date-time
+        intros:
+          type: array
+          items:
+            $ref: "#/components/schemas/IntroArtifact"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - matchId
+        - otherUser
+        - state
+        - introState
+        - createdAt
+        - intros
+
+    IntroArtifact:
+      type: object
+      properties:
+        introId:
+          type: string
+        matchId:
+          type: string
+        senderUserId:
+          type: string
+        artifactType:
+          type: string
+          enum: [text, audio, video]
+        text:
+          type: string
+        durationSeconds:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - introId
+        - matchId
+        - senderUserId
+        - artifactType
+        - createdAt
+
+    SendIntroRequest:
+      type: object
+      properties:
+        artifactType:
+          type: string
+          enum: [text, audio, video]
+        text:
+          type: string
+        durationSeconds:
+          type: integer
+      required:
+        - artifactType
+
+    Message:
+      type: object
+      properties:
+        messageId:
+          type: string
+        matchId:
+          type: string
+        senderUserId:
+          type: string
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+      required:
+        - messageId
+        - matchId
+        - senderUserId
+        - text
+        - createdAt
+
+    SendMessageRequest:
+      type: object
+      properties:
+        text:
+          type: string
+      required:
+        - text
+
+    ReportRequest:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [fake_profile, harassment, inappropriate_content, spam_scam, underage_concern, other]
+        details:
+          type: string
+      required:
+        - category
+
+    Entitlements:
+      type: object
+      properties:
+        premiumTier:
+          type: string
+          enum: [free, premium]
+        dailyLikesRemaining:
+          type: integer
+        dailyLikesTotal:
+          type: integer
+        advancedFilters:
+          type: boolean
+      required:
+        - premiumTier
+        - dailyLikesRemaining
+        - dailyLikesTotal
+        - advancedFilters

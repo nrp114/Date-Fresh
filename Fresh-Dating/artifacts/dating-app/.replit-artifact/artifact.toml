@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Trust Dating"
+version = "1.0.0"
+id = "artifacts/dating-app"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+localPort = 24958
+name = "expo"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/dating-app run dev"
+
+[services.env]
+PORT = "24958"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/dating-app", "run", "build"]
+run = ["pnpm", "--filter", "@workspace/dating-app", "run", "serve"]

@@ -1,0 +1,908 @@
+# Engineering Spec — Trust-First, Freshness-First Dating App
+
+## 1. Document purpose
+
+This document translates the product blueprint into an engineering-oriented specification for MVP and near-term extensions. It is intended for backend, frontend, data, trust & safety, and ML/recommendation teams.
+
+## 2. Product summary
+
+Build a dating app optimized for credible mutual connection rather than raw engagement. The app should:
+
+* keep profiles current via a freshness system
+* improve trust via verification and behavior signals
+* reduce wasted likes through match-likelihood guidance and queue management
+* improve early chemistry using short voice/video intros
+
+## 3. MVP scope
+
+### In scope
+
+* account creation and authentication
+* profile creation and editing
+* core profile content: photos, text prompts, intent, preferences
+* Now tab content: recent photo/video/audio moments
+* identity verification status handling
+* discovery feed with curated candidates
+* contextual likes and match creation
+* managed incoming like queue
+* match-likelihood label generation
+* post-match 30-second audio/video intro exchange
+* chat unlock after intro flow
+* basic reporting/blocking
+* premium entitlements: extra daily likes, advanced filters
+
+### Out of scope for MVP
+
+* public/social feed
+* live video dates
+* AI-generated coaching
+* advanced semantic personality embedding models beyond simple ranking features
+* background checks
+* complex trust graph/network effects
+
+## 4. Non-goals
+
+* maximize session length at the cost of quality
+* support infinite swiping as primary discovery pattern
+* expose sensitive inferred preference information to users
+* allow unlimited likes or purely pay-to-win distribution
+
+## 5. High-level architecture
+
+### Client apps
+
+* iOS app
+* Android app
+* optional web admin/internal moderation panel
+
+### Backend services
+
+1. Auth Service
+2. User/Profile Service
+3. Media Service
+4. Verification Service integration layer
+5. Discovery Service
+6. Recommendation/Ranking Service
+7. Like/Match Service
+8. Queue Management Service
+9. Messaging/Intro Service
+10. Freshness Scoring Service
+11. Trust & Safety Service
+12. Notifications Service
+13. Subscription/Billing Service
+14. Analytics/Event Pipeline
+
+### Data/infra
+
+* transactional database (Postgres or equivalent)
+* object/media storage (S3/GCS equivalent)
+* cache/search layer (Redis/OpenSearch optional)
+* message queue / event bus
+* feature store or ranking feature cache
+* data warehouse for analytics and model training
+
+## 6. Core user flows
+
+### 6.1 Onboarding
+
+1. User creates account
+2. User verifies phone/email
+3. User selects gender/orientation and preferences
+4. User selects relationship intent
+5. User uploads required profile content
+6. User optionally completes identity verification
+7. User sets preferences and deal breakers
+8. User profile enters reviewable state
+9. User becomes eligible for discovery once minimum completeness thresholds are met
+
+### 6.2 Profile browsing
+
+1. Client requests discovery batch
+2. Discovery service fetches eligible candidates
+3. Ranking service scores candidates
+4. Queue fairness and exposure constraints applied
+5. Client receives 5–10 candidates plus explanations and freshness labels
+
+### 6.3 Sending a like
+
+1. User views profile
+2. Client requests or displays cached match-likelihood label
+3. User likes a specific entity (photo/prompt/audio/video/profile)
+4. Like service validates quota and eligibility
+5. Like is stored
+6. Queue management assigns like to receiver backlog or active tray
+7. Mutual like check performed
+8. If mutual, match record is created and intro flow starts
+
+### 6.4 Match intro flow
+
+1. Match is created
+2. Both users are prompted to send one intro artifact: text/audio/video
+3. Intro artifacts stored and exchanged
+4. Full chat unlocks when configured criteria are met
+
+### 6.5 Freshness update
+
+1. User uploads recent content to Now tab or refreshes core profile item
+2. Media service stores content
+3. Freshness service recalculates freshness features
+4. Ranking cache updated asynchronously
+
+## 7. Domain model
+
+## 7.1 User
+
+Fields:
+
+* user_id
+* created_at
+* status (active, paused, banned, deleted)
+* date_of_birth
+* gender_identity
+* orientation
+* location_home
+* location_current
+* premium_tier
+* last_active_at
+* account_flags
+
+## 7.2 Profile
+
+Fields:
+
+* profile_id
+* user_id
+* display_name
+* bio
+* relationship_intent
+* profile_completeness_score
+* verification_status
+* freshness_score
+* visibility_status
+* created_at
+* updated_at
+
+## 7.3 ProfilePhoto
+
+Fields:
+
+* photo_id
+* profile_id
+* media_id
+* is_primary
+* taken_at_optional
+* uploaded_at
+* freshness_bucket
+* moderation_status
+
+## 7.4 PromptAnswer
+
+Fields:
+
+* prompt_answer_id
+* profile_id
+* prompt_id
+* answer_type (text, audio, video)
+* content_text_optional
+* media_id_optional
+* updated_at
+* freshness_bucket
+
+## 7.5 NowItem
+
+Fields:
+
+* now_item_id
+* profile_id
+* media_type (photo, audio, video, text)
+* media_id_optional
+* caption_optional
+* prompt_type_optional
+* created_at
+* expires_at_optional
+* visibility_state
+* moderation_status
+
+## 7.6 Preferences
+
+Fields:
+
+* profile_id
+* preferred_age_min
+* preferred_age_max
+* preferred_distance_km
+* preferred_genders
+* relationship_goals_allowed
+* lifestyle_preferences_json
+* deal_breakers_json
+
+## 7.7 Verification
+
+Fields:
+
+* verification_id
+* user_id
+* verification_type (phone, email, selfie, liveness)
+* status
+* provider_reference
+* created_at
+* updated_at
+
+## 7.8 Like
+
+Fields:
+
+* like_id
+* sender_user_id
+* receiver_user_id
+* target_type (profile, photo, prompt, audio, video, now_item)
+* target_id
+* message_optional
+* created_at
+* sender_snapshot_features_json
+* receiver_snapshot_features_json
+* likelihood_label_at_send
+* state (pending, tray, matched, expired, withdrawn)
+
+## 7.9 Match
+
+Fields:
+
+* match_id
+* user_a_id
+* user_b_id
+* created_at
+* state (active, unmatched, blocked, expired)
+* intro_state
+* chat_unlocked_at_optional
+
+## 7.10 IntroArtifact
+
+Fields:
+
+* intro_id
+* match_id
+* sender_user_id
+* artifact_type (text, audio, video)
+* media_id_optional
+* text_optional
+* duration_seconds
+* created_at
+
+## 7.11 QueueState
+
+Fields:
+
+* receiver_user_id
+* active_tray_count
+* backlog_count
+* accepting_new_likes_bool
+* updated_at
+
+## 7.12 TrustSignal
+
+Fields:
+
+* user_id
+* reply_rate_30d
+* ghost_rate_30d
+* report_rate_30d
+* suspicious_behavior_score
+* freshness_score
+* authenticity_score
+* last_recomputed_at
+
+## 8. Storage design
+
+### Relational DB
+
+Use relational tables for:
+
+* users
+* profiles
+* preferences
+* likes
+* matches
+* intro artifacts metadata
+* verification metadata
+* reports/blocks
+
+### Object storage
+
+Use blob storage for:
+
+* photos
+* audio
+* video
+* verification media
+
+### Caching
+
+Use Redis for:
+
+* rate limits
+* daily like counters
+* queue counts
+* candidate batch caching
+* freshness label cache
+* match-likelihood cache
+
+## 9. Media pipeline
+
+### Upload steps
+
+1. client requests upload URL
+2. media uploaded to object storage
+3. callback or finalize endpoint called
+4. media moderation job created
+5. transcoding/thumbnail generation runs
+6. metadata stored
+7. content marked usable after moderation passes
+
+### Media requirements
+
+* photos: compressed, multiple sizes
+* video: max duration configurable, e.g. 30 seconds for intros, 15–30 seconds for Now items
+* audio: max duration 30 seconds for intro
+* store waveform/preview metadata for audio
+
+### Moderation checks
+
+* nudity/unsafe content detection
+* face presence check where needed
+* duplicate/spam detection later phase
+
+## 10. Freshness system spec
+
+### Purpose
+
+Generate currentness indicators for ranking and UI.
+
+### Inputs
+
+* time since profile photo upload
+* time since prompt update
+* time since voice/video intro update
+* time since latest Now item
+* last active timestamp
+* response recency
+
+### Outputs
+
+#### Internal numeric signals
+
+* profile_freshness_score: 0–1
+* media_freshness_score: 0–1
+* activity_freshness_score: 0–1
+
+#### UI labels
+
+* active_today
+* updated_this_week
+* recent_media_this_month
+* voice_intro_recent
+
+### Suggested freshness business rules
+
+* primary photo > 180 days => refresh suggested
+* primary photo > 270 days => ranking penalty
+* prompt > 180 days => prompt refresh suggestion
+* no activity > 30 days => discovery distribution reduced
+* no recent media > 60 days => lower freshness bucket
+
+### Recompute strategy
+
+* synchronous lightweight update on content write
+* nightly batch recompute for all users
+* streaming recompute for high-activity users optional later
+
+## 11. Discovery eligibility rules
+
+A profile is eligible for discovery if:
+
+* account status is active
+* required onboarding complete
+* minimum profile completeness reached
+* moderation status clean
+* not blocked by requesting user
+* within hard filters (orientation/gender/preferences)
+* not already matched/unmatched recently if cooldown applies
+
+Additional ranking boosts if:
+
+* verified
+* recently active
+* recent Now tab content exists
+* high reply quality metrics
+
+## 12. Recommendation system spec
+
+### Objective
+
+Maximize probability of meaningful mutual interaction, not just outbound likes.
+
+### Two-stage architecture
+
+#### Stage 1: Candidate generation
+
+Filters based on:
+
+* geography
+* age overlap
+* gender/orientation compatibility
+* deal breakers
+* intent compatibility
+* inactive/banned exclusion
+
+Output: top N eligible candidates, e.g. 500–2000
+
+#### Stage 2: Ranking
+
+Score candidates using weighted features.
+
+### Ranking feature groups
+
+1. Preference alignment
+2. Intent alignment
+3. Freshness
+4. Authenticity/trust
+5. Response likelihood
+6. Conversation potential
+7. Queue fairness
+8. Exploration diversity
+
+### Example scoring formula
+
+score =
+w1 * preference_alignment +
+w2 * intent_alignment +
+w3 * freshness_score +
+w4 * authenticity_score +
+w5 * response_likelihood +
+w6 * conversation_potential +
+w7 * queue_availability_adjustment +
+w8 * exploration_bonus
+
+### Guardrails
+
+* do not use protected/sensitive attributes in user-facing explanations
+* any sensitive attribute usage in ranking must be reviewed by legal/policy and ideally avoided for MVP
+* explicit preferences set by users may be enforced only where lawful and product-approved
+
+### Cold start strategy
+
+For new users with little behavior data:
+
+* rely on explicit preferences, freshness, verification, completeness
+* add exploration weight
+* collect early preference signals from likes/skips
+
+## 13. Match-likelihood label spec
+
+### Goal
+
+Inform sender whether a like is likely worth spending.
+
+### Inputs
+
+* explicit preference overlap
+* receiver queue load
+* receiver recent activity
+* receiver reply tendency
+* sender/receiver intent overlap
+* location fit
+* freshness/trust signals
+
+### Output labels
+
+* High chance of reply
+* Moderate chance of reply
+* Low chance of reply
+
+Alternative phrasing supported by experiment:
+
+* Strong fit
+* Decent fit
+* Low visibility right now
+
+### Explanation reasons
+
+Provide up to 2–3 safe reasons:
+
+* relationship goals align
+* profile is recently active
+* this user is currently reviewing a full queue
+* you fit this user’s stated preferences
+* this user tends to respond to nearby profiles
+
+### Service design
+
+* label computed on profile fetch or precomputed in batch for candidate sets
+* cache for short TTL, e.g. 15 min
+* invalidate on major queue or activity changes
+
+## 14. Queue management spec
+
+### Goal
+
+Prevent overloaded users from receiving unusable incoming piles while keeping sender expectations realistic.
+
+### Model
+
+Each receiver has:
+
+* active tray: visible likes currently reviewable, cap 10–15
+* ranked backlog: pending likes not yet surfaced
+
+### Like ingestion
+
+On incoming like:
+
+1. create like record
+2. compute backlog priority using compatibility, freshness, intent, trust
+3. insert into ranked backlog
+4. if active tray has room, promote immediately
+
+### Promotion rules
+
+Promote from backlog to tray when:
+
+* tray count drops below threshold
+* receiver returns and is actively reviewing
+* high-priority candidate qualifies
+
+### Expiration/decay
+
+* likes in backlog decay in priority over time
+* likes may expire after configured period, e.g. 14–30 days
+* strong-fit likes can have longer TTL
+
+### Sender-facing signals
+
+* queue open
+* queue busy
+* limited visibility right now
+
+Do not expose exact rank position in MVP unless explicitly desired later.
+
+## 15. Like quotas and entitlement logic
+
+### Free tier example
+
+* 5 likes/day or configurable
+
+### Premium tier example
+
+* 15 likes/day or configurable
+* advanced filters
+
+### Enforcement
+
+* maintain daily counters in Redis + durable audit trail in DB
+* reset based on user timezone or fixed UTC policy
+
+## 16. Match creation logic
+
+A match is created when:
+
+* user A likes user B
+* user B already has an active like for user A, or likes back
+
+Upon match:
+
+* create match row
+* update both likes to matched
+* create intro workflow state
+* send notifications
+
+## 17. Intro and chat system spec
+
+### Intro modes
+
+* text intro
+* 30s audio intro
+* 30s video intro
+
+### MVP rule
+
+Configurable options:
+
+1. both users must submit one intro before full chat unlocks
+   or
+2. first intro opens limited reply flow, then chat unlocks after both participate
+
+Recommend MVP option 2 for lower friction.
+
+### Messaging restrictions pre-unlock
+
+* max 1 intro artifact per user before unlock
+* optional short text reaction
+
+### Post-unlock chat
+
+* standard one-to-one messaging
+* moderation/report hooks
+
+## 18. Notifications spec
+
+### Push triggers
+
+* new like enters tray
+* mutual match created
+* intro received
+* full chat unlocked
+* profile refresh reminder
+* freshness falling reminder
+
+### Anti-spam rules
+
+* bundle notifications where possible
+* suppress low-value vanity nudges
+
+## 19. Trust & safety spec
+
+### Blocking
+
+User can block another user; results:
+
+* hide both profiles from each other
+* disable chat/likes
+* prevent future discovery
+
+### Reporting
+
+Report categories:
+
+* fake profile
+* harassment
+* inappropriate content
+* spam/scam
+* underage concern
+* other
+
+### Moderation backend
+
+* queue reported content for review
+* configurable automatic action thresholds
+* maintain audit logs
+
+### Suspicious behavior heuristics
+
+* mass-like bursts
+* repeated copy/paste intro content
+* rapid account recreation
+* media mismatch or repeated stolen media checks later phase
+
+## 20. API surface (illustrative)
+
+### Auth
+
+* POST /auth/signup
+* POST /auth/login
+* POST /auth/verify-phone
+
+### Profile
+
+* GET /profile/me
+* PATCH /profile/me
+* POST /profile/photos
+* DELETE /profile/photos/{id}
+* POST /profile/prompts
+* PATCH /profile/prompts/{id}
+* POST /profile/now-items
+* DELETE /profile/now-items/{id}
+
+### Discovery
+
+* GET /discovery/batch
+* GET /profiles/{user_id}
+* GET /profiles/{user_id}/likelihood
+
+### Likes/Matches
+
+* POST /likes
+* POST /likes/{id}/withdraw
+* GET /matches
+* GET /matches/{id}
+
+### Intro/Chat
+
+* POST /matches/{id}/intro
+* GET /matches/{id}/intro
+* GET /matches/{id}/messages
+* POST /matches/{id}/messages
+
+### Trust/Safety
+
+* POST /users/{id}/block
+* POST /users/{id}/report
+
+### Subscription
+
+* GET /billing/entitlements
+* POST /billing/webhook
+
+## 21. Event taxonomy
+
+Track at minimum:
+
+* signup_completed
+* onboarding_completed
+* verification_started/completed
+* profile_photo_uploaded
+* prompt_answered
+* now_item_created
+* discovery_batch_viewed
+* profile_opened
+* like_sent
+* like_withdrawn
+* match_created
+* intro_sent
+* chat_unlocked
+* message_sent
+* block_created
+* report_created
+* subscription_started
+
+All events should include:
+
+* user_id
+* timestamp
+* app_version
+* platform
+* experiment flags
+
+## 22. Analytics and quality metrics
+
+### Marketplace metrics
+
+* like to match conversion
+* match to intro completion
+* intro to chat unlock conversion
+* chat reply rate
+* conversation depth
+
+### Quality metrics
+
+* report rate per DAU
+* fake profile detection rate
+* stale profile share
+* receiver tray overload rate
+* sender regret proxy (likes sent to low-likelihood profiles vs response)
+
+### Freshness metrics
+
+* % active profiles with Now item in last 14 days
+* avg age of primary photo
+* % profiles with recent audio/video intro
+
+## 23. Experimentation plan
+
+Experiments for MVP:
+
+* likelihood label wording
+* active tray size (10 vs 15)
+* daily free like count
+* intro unlock rule (one-sided vs both-sided)
+* freshness label prominence
+* Now tab optional vs lightly nudged
+
+Guardrail metrics:
+
+* user retention
+* report rate
+* like-to-match conversion
+* frustration events/dropoff at intro step
+
+## 24. Privacy and compliance considerations
+
+* explicit consent for storing and displaying media
+* separate retention policy for verification media
+* user-controlled deletion of profile media
+* do not expose sensitive inferred traits
+* ensure age gating / legal age checks where required
+* support data deletion requests
+
+## 25. Admin and moderation tools
+
+Need internal tools for:
+
+* view user profile summary
+* inspect reports
+* inspect moderation decisions
+* ban/suspend/unban
+* remove media
+* view audit logs
+* review suspicious behavior alerts
+
+## 26. Reliability/SLOs
+
+### Suggested targets
+
+* profile fetch p95 < 300 ms excluding media
+* discovery batch p95 < 500 ms from cacheable path
+* like send success > 99.9%
+* chat send success > 99.9%
+
+### Availability
+
+* target 99.9% for core APIs
+* degrade gracefully: if ranking service fails, serve fallback candidates from cached eligible pool
+
+## 27. Security considerations
+
+* signed upload URLs
+* authenticated media access where needed
+* encryption at rest for sensitive media
+* role-based access for admin tooling
+* rate limiting on signup, likes, messages, reports
+
+## 28. Rollout plan
+
+### Phase 0: internal alpha
+
+* basic profile
+* media upload
+* likes/matches
+* intro flow
+
+### Phase 1: private beta in one city/segment
+
+* enable freshness labels
+* enable queue management
+* basic likelihood labels
+
+### Phase 2: broader beta
+
+* premium entitlements
+* improved ranking
+* moderation automation improvements
+
+## 29. Open questions
+
+* Should full chat unlock after one intro each or after first mutual response?
+* Should Now tab content be visible before like, after like, or only after match?
+* How aggressive should like expiration be?
+* What exact tray size maximizes reply quality without reducing opportunity too much?
+* Should verification be optional for browse eligibility or mandatory for full distribution?
+* Which features belong in premium without harming fairness?
+
+## 30. Recommended MVP defaults
+
+* active tray size: 12
+* backlog expiration: 21 days
+* free likes/day: 5
+* premium likes/day: 15
+* intro max duration: 30 seconds
+* Now tab item max active count: 3
+* profile primary photo refresh suggestion: 180 days
+* profile inactivity penalty start: 30 days
+* chat unlock: one intro from either side + one response from the other side
+
+## 31. Engineering milestones
+
+### Milestone 1
+
+* auth, profiles, media, likes, matches
+
+### Milestone 2
+
+* Now tab, freshness scoring, discovery batch, ranking v1
+
+### Milestone 3
+
+* queue management, likelihood labels, intro flow, notifications
+
+### Milestone 4
+
+* premium entitlements, moderation admin, analytics dashboards
+
+## 32. Summary
+
+The MVP should focus on three capabilities:
+
+1. current and credible profiles
+2. efficient and fair like/match flow
+3. early chemistry through lightweight voice/video intros
+
+Everything in the engineering design should support those three outcomes.
